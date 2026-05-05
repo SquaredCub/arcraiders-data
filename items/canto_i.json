@@ -52,6 +52,7 @@
   "blueprintLocked": true,
   "craftBench": "weapon_bench",
   "stationLevelRequired": 3,
+  "isWeapon": true,
   "recipe": {
     "advanced_mechanical_components": 2,
     "magnet": 5,
