@@ -1,0 +1,48 @@
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: "23 6 * * *" # daily, 06:23 UTC (off the whole-hour rush)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history — needed for merge
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/RaidTheory/arcraiders-data.git
+          git fetch upstream main
+
+      - name: Check for new upstream commits
+        id: check
+        run: echo "new=$(git rev-list --count HEAD..upstream/main)" >> "$GITHUB_OUTPUT"
+
+      - name: Conflict probe (in-memory dry run, touches nothing)
+        if: steps.check.outputs.new != '0'
+        run: |
+          if ! git merge-tree --write-tree HEAD upstream/main > /dev/null; then
+            echo "::error::Merging RaidTheory/main would conflict — sync manually."
+            exit 1
+          fi
+
+      - name: Merge and push
+        if: steps.check.outputs.new != '0'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git merge --no-edit upstream/main
+          git push origin main
+
+      - name: Trigger site rebuild
+        if: steps.check.outputs.new != '0'
+        env:
+          GH_TOKEN: ${{ secrets.DEPLOY_DISPATCH_TOKEN }}
+        run: gh api repos/SquaredCub/arc-raiders-recycle-tool/dispatches -f event_type=data-updated
